@@ -1,0 +1,28 @@
+{
+  "_note": "US import duty estimates by product type, as a share of the supplier (customs) value. 'china' = total incl. Section 301 and other additional tariffs for China origin. Rows marked verified came from the source listed; the rest are category estimates. ALWAYS shown to users as an estimate with a range — confirm with a customs broker. Update this file when tariffs change; the Watch job alerts affected users.",
+  "_as_of": "2026-09-23",
+  "_sources": {
+    "accio": "https://github.com/AccioWork/import-duty-calculator (2026 HTS examples, China origin totals)"
+  },
+  "eu_flat_duty_eur_per_item": 3.0,
+  "china_postal_fee_estimate_usd": 1.00,
+  "default": {"hts": "—", "label": "General merchandise", "china": [0.25, 0.45], "other": [0.03, 0.10], "verified": false},
+  "rules": [
+    {"keywords": ["yoga mat", "exercise mat"],                    "hts": "9506.91.00", "label": "Exercise equipment",     "china": [0.60, 0.64], "other": [0.04, 0.06], "verified": true,  "source": "accio"},
+    {"keywords": ["water bottle", "tumbler", "vacuum flask"],     "hts": "7323.93.00", "label": "Steel table/kitchenware","china": [0.50, 0.54], "other": [0.02, 0.05], "verified": true,  "source": "accio"},
+    {"keywords": ["t-shirt", "tee shirt", "cotton shirt"],        "hts": "6109.10.00", "label": "Cotton knit shirts",     "china": [0.32, 0.36], "other": [0.16, 0.18], "verified": true,  "source": "accio"},
+    {"keywords": ["mug", "ceramic", "utensil holder", "crock"],   "hts": "6911.10.45", "label": "Ceramic tableware",      "china": [0.22, 0.26], "other": [0.03, 0.10], "verified": true,  "source": "accio"},
+    {"keywords": ["led bulb", "light bulb"],                      "hts": "8539.52.00", "label": "LED lamps",              "china": [0.10, 0.14], "other": [0.02, 0.04], "verified": true,  "source": "accio"},
+    {"keywords": ["headphone", "earbud", "earphone"],             "hts": "8518.30.20", "label": "Headphones",             "china": [0.08, 0.12], "other": [0.00, 0.02], "verified": true,  "source": "accio"},
+    {"keywords": ["desk", "office table"],                        "hts": "9403.10.00", "label": "Metal office furniture", "china": [0.70, 0.78], "other": [0.00, 0.03], "verified": true,  "source": "accio"},
+    {"keywords": ["running shoe", "sneaker"],                     "hts": "6404.19.90", "label": "Textile-upper footwear", "china": [0.24, 0.29], "other": [0.12, 0.20], "verified": true,  "source": "accio"},
+    {"keywords": ["silicone", "baking mat", "spatula", "kitchen"],"hts": "3924.10.40", "label": "Plastic/silicone kitchenware", "china": [0.30, 0.45], "other": [0.03, 0.07], "verified": false},
+    {"keywords": ["dog", "cat", "pet", "leash", "collar"],        "hts": "4201.00.30", "label": "Pet accessories",        "china": [0.30, 0.45], "other": [0.02, 0.06], "verified": false},
+    {"keywords": ["serum", "cream", "moisturizer", "cosmetic"],   "hts": "3304.99.50", "label": "Beauty preparations",    "china": [0.25, 0.40], "other": [0.00, 0.03], "verified": false},
+    {"keywords": ["resistance band", "dumbbell", "kettlebell"],   "hts": "9506.91.00", "label": "Exercise equipment",     "china": [0.60, 0.64], "other": [0.04, 0.06], "verified": false},
+    {"keywords": ["tent", "camping", "hammock", "sleeping bag"],  "hts": "6306.22.90", "label": "Camping goods",          "china": [0.30, 0.45], "other": [0.05, 0.10], "verified": false},
+    {"keywords": ["organizer", "storage", "shelf", "basket"],     "hts": "3924.90.56", "label": "Household storage",      "china": [0.30, 0.45], "other": [0.03, 0.07], "verified": false},
+    {"keywords": ["baby", "infant", "toddler", "pacifier"],       "hts": "3924.90.56", "label": "Baby goods",             "china": [0.30, 0.45], "other": [0.03, 0.07], "verified": false},
+    {"keywords": ["notebook", "pen", "planner", "stationery"],    "hts": "4820.10.20", "label": "Stationery",             "china": [0.25, 0.40], "other": [0.00, 0.03], "verified": false}
+  ]
+}

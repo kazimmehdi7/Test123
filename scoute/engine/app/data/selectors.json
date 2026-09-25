@@ -1,0 +1,50 @@
+{
+  "_note": "CSS selectors and patterns used by app/extract. Edit this file when a site changes its layout, then restart the engine. Order matters: first match wins within each list. Test changes with: python -m app.tools.check_sources price-file debug/amazon_product_last.html",
+  "_as_of": "2026-09-23",
+  "amazon": {
+    "product_price": [
+      "#corePrice_feature_div .a-price:not(.a-text-price) .a-offscreen",
+      "#corePriceDisplay_desktop_feature_div .a-price:not(.a-text-price) .a-offscreen",
+      "#apex_desktop .a-price:not(.a-text-price) .a-offscreen",
+      "#tp_price_block_total_price_ww .a-offscreen",
+      "#price_inside_buybox",
+      "#priceblock_dealprice",
+      "#priceblock_ourprice"
+    ],
+    "product_split_scopes": [
+      "#corePrice_feature_div .a-price:not(.a-text-price)",
+      "#corePriceDisplay_desktop_feature_div .a-price:not(.a-text-price)",
+      "#apex_desktop .a-price:not(.a-text-price)"
+    ],
+    "card_price": [
+      ".a-price:not(.a-text-price) .a-offscreen"
+    ],
+    "card_split_scopes": [
+      ".a-price:not(.a-text-price)"
+    ],
+    "movers_price": [
+      "span[class*='p13n-sc-price']",
+      "span[class*='_p13n-sc-price']",
+      ".a-price:not(.a-text-price) .a-offscreen"
+    ],
+    "buy_anchors": ["#add-to-cart-button", "#buy-now-button", "#submit\\.add-to-cart", "#buybox"],
+    "price_zones": ["#corePrice_feature_div", "#corePriceDisplay_desktop_feature_div", "#apex_desktop", "#buybox", "#desktop_buybox"],
+    "structured_inputs": ["#attach-base-product-price::attr(value)", "#twister-plus-price-data-price::attr(value)"],
+    "structured_regex": ["\"priceAmount\"\\s*:\\s*([0-9]+(?:\\.[0-9]+)?)"],
+    "unavailable_markers": ["currently unavailable", "we don't know when or if this item will be back in stock", "see all buying options"],
+    "availability_zone": ["#availability", "#outOfStock", "#buybox"]
+  },
+  "aliexpress": {
+    "product_price": ["[class*='price--current'] [class*='price--currentPriceText']", "[class*='product-price-current']", "[class*='price--current']"],
+    "product_split_scopes": [],
+    "card_price": ["[class*='price-sale']", "[class*='multi--price-sale']", "[class*='price--sale']"],
+    "card_split_scopes": ["[class*='multi--price-sale']", "[class*='price-sale']"],
+    "movers_price": [],
+    "buy_anchors": ["[class*='add-to-cart']", "[class*='buy-now']"],
+    "price_zones": ["[class*='price--wrap']", "[class*='product-price']"],
+    "structured_inputs": [],
+    "structured_regex": ["\"minActivityAmount\"\\s*:\\s*\\{[^}]*?\"value\"\\s*:\\s*([0-9]+(?:\\.[0-9]+)?)", "\"skuActivityAmount\"\\s*:\\s*\\{[^}]*?\"value\"\\s*:\\s*([0-9]+(?:\\.[0-9]+)?)"],
+    "unavailable_markers": ["this product is no longer available", "sold out"],
+    "availability_zone": ["[class*='quantity--info']", "[class*='product-quantity']"]
+  }
+}

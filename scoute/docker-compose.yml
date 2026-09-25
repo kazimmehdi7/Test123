@@ -1,0 +1,9 @@
+# Optional: Postgres + Redis for production-like local runs.
+services:
+  postgres:
+    image: postgres:16
+    environment: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: scoute }
+    ports: ["5433:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+volumes:
+  pgdata:

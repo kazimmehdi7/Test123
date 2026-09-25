@@ -1,0 +1,6 @@
+{
+  "_note": "Amazon Associates commission per category. ESTIMATES after the 2026 cuts — verify against the current Associates fee schedule.",
+  "_as_of": "2026-09-23",
+  "kitchen": 0.03, "home": 0.03, "pet": 0.03, "beauty": 0.03, "fitness": 0.03,
+  "outdoor": 0.03, "office": 0.025, "baby": 0.03, "electronics": 0.02, "default": 0.03
+}

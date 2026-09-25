@@ -1,0 +1,41 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: light; }
+html { background: #EEF1F3; }
+body { @apply bg-paper text-ink antialiased; font-feature-settings: "tnum" 1, "lnum" 1; }
+
+h1, h2, h3 { letter-spacing: -0.01em; }
+a { text-underline-offset: 3px; }
+
+:focus-visible { outline: 2px solid #1E4E8C; outline-offset: 2px; }
+
+@layer components {
+  .btn        { @apply inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
+  .btn-primary{ @apply btn bg-customs text-white hover:bg-[#173d70]; }
+  .btn-quiet  { @apply btn border border-rule bg-surface text-ink hover:border-muted; }
+  .field      { @apply w-full rounded border border-rule bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/70 focus:border-customs focus:outline-none; }
+  .label      { @apply mb-1 block text-sm font-medium text-ink; }
+  .hint       { @apply mt-1 text-xs text-muted; }
+  .panel      { @apply border border-rule bg-surface; }
+  .num        { font-variant-numeric: tabular-nums; }
+}
+
+/* The one bold element: the verdict stamp */
+.stamp {
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 2px solid currentColor; border-radius: 3px; padding: 0.2rem 0.6rem;
+  font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1;
+  box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 3px currentColor;
+  transform: rotate(-2.5deg); white-space: nowrap;
+}
+.stamp-lg { font-size: 1.35rem; padding: 0.55rem 1rem; transform: rotate(-4deg); }
+@media (prefers-reduced-motion: no-preference) {
+  .stamp-land { animation: land 420ms cubic-bezier(.2,.9,.3,1.2) both; }
+  @keyframes land { from { transform: rotate(-4deg) scale(1.6); opacity: 0; } to { transform: rotate(-4deg) scale(1); opacity: 1; } }
+}
+@media print {
+  .no-print { display: none !important; }
+  body { background: #fff; }
+}

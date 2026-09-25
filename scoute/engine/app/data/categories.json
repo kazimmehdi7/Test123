@@ -1,0 +1,10 @@
+{
+  "kitchen": {"label": "Kitchen",  "movers": "kitchen",          "search": "kitchen gadgets"},
+  "home":    {"label": "Home",     "movers": "home-garden",      "search": "home organization"},
+  "pet":     {"label": "Pet",      "movers": "pet-supplies",     "search": "pet supplies"},
+  "beauty":  {"label": "Beauty",   "movers": "beauty",           "search": "beauty tools"},
+  "fitness": {"label": "Fitness",  "movers": "exercise-and-fitness", "search": "home workout equipment"},
+  "outdoor": {"label": "Outdoor",  "movers": "outdoor-recreation",   "search": "camping gear"},
+  "office":  {"label": "Office",   "movers": "office-products",  "search": "desk accessories"},
+  "baby":    {"label": "Baby",     "movers": "baby-products",    "search": "baby essentials"}
+}
