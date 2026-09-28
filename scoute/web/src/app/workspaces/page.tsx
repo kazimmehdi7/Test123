@@ -61,8 +61,8 @@ export default function WorkspacesPage() {
           return (
             <div
               key={w.id}
-              className={`panel flex flex-col justify-between border p-5 transition-shadow shadow-sm ${
-                isCurrent ? "border-customs ring-1 ring-customs/30 bg-surface" : "border-rule bg-surface hover:shadow"
+              className={`panel flex flex-col justify-between border p-5 transition-all duration-200 ${
+                isCurrent ? "border-customs ring-1 ring-customs/30 bg-customs-tint/40" : "border-rule bg-surface hover:-translate-y-0.5 hover:border-rule-strong hover:shadow-md"
               }`}
             >
               <div>
@@ -154,7 +154,7 @@ export default function WorkspacesPage() {
       ) : canAdd ? (
         <form
           onSubmit={create}
-          className="panel max-w-xl border border-rule bg-surface p-6 shadow-sm"
+          className="panel max-w-xl p-6 shadow-sm"
         >
           <h2 className="text-sm font-bold text-ink">Create Client Workspace</h2>
           <p className="mt-1 text-xs text-muted leading-relaxed">
@@ -191,7 +191,7 @@ export default function WorkspacesPage() {
           </div>
         </form>
       ) : (
-        <div className="panel border border-rule bg-surface p-4 text-xs text-muted max-w-xl shadow-sm">
+        <div className="kpi-card p-4 text-xs text-muted max-w-xl shadow-sm">
           You have utilized all {user.limits.workspaces} client workspaces available on your Business plan.
         </div>
       )}

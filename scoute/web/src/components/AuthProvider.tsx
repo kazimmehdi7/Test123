@@ -4,8 +4,8 @@ import { api, auth } from "@/lib/api";
 
 export type Workspace = { id: string; name: string; client_name: string; logo_url: string; is_default: boolean; brief: any; has_brief: boolean };
 export type User = {
-  id: string; email: string; name: string; plan: "free" | "pro" | "business";
-  limits: { searches_per_day: number; feed_items: number; watch_items: number; workspaces: number; full_detail: boolean; reports: boolean };
+  id: string; email: string; name: string; plan: "free" | "pro" | "business"; email_verified: boolean;
+  limits: { searches_per_day: number; feed_items: number; watch_items: number; sentinel_items: number; workspaces: number; full_detail: boolean; reports: boolean };
   settings: Record<string, any>; workspaces: Workspace[]; demo: boolean; billing_enabled: boolean;
 };
 

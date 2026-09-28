@@ -61,9 +61,9 @@ export function OpportunityTable({ items }: { items: Card[] }) {
   });
 
   return (
-    <div className="panel overflow-hidden border border-rule bg-surface shadow-sm">
+    <div className="panel overflow-hidden">
       {/* Table Controls */}
-      <div className="flex flex-wrap items-center justify-between border-b border-rule bg-paper/30 px-4 py-2.5 text-xs">
+      <div className="flex flex-wrap items-center justify-between border-b border-rule bg-surface-sunken px-4 py-2.5 text-xs">
         <span className="font-semibold uppercase tracking-wider text-muted">
           {sorted.length} {sorted.length === 1 ? "Product" : "Products"} Analyzed
         </span>
@@ -80,10 +80,10 @@ export function OpportunityTable({ items }: { items: Card[] }) {
             <button
               key={k}
               onClick={() => handleSort(k)}
-              className={`rounded px-2 py-1 text-xs font-medium transition-colors ${
+              className={`rounded-full px-2.5 py-1 text-xs font-medium transition-all duration-150 ${
                 sortKey === k
-                  ? "bg-customs text-white"
-                  : "bg-surface text-muted hover:text-ink border border-rule"
+                  ? "bg-grad-customs text-white shadow-sm"
+                  : "border border-rule bg-surface text-muted hover:border-rule-strong hover:text-ink"
               }`}
             >
               {label} {sortKey === k ? (sortAsc ? "↑" : "↓") : ""}
@@ -95,7 +95,7 @@ export function OpportunityTable({ items }: { items: Card[] }) {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[920px] text-sm">
           <thead>
-            <tr className="border-b border-rule bg-paper/40 text-left text-xs font-semibold text-muted">
+            <tr className="border-b border-rule bg-surface-sunken text-left text-xs font-semibold text-muted">
               <th className="px-4 py-3">Product</th>
               <th className="px-3 py-3 text-right">Retail</th>
               <th className="px-3 py-3 text-right">Supplier</th>
@@ -113,7 +113,7 @@ export function OpportunityTable({ items }: { items: Card[] }) {
               const isProfitable = (c.net || 0) > 0;
 
               return (
-                <tr key={c.id} className="transition-colors hover:bg-paper/40">
+                <tr key={c.id} className="transition-colors hover:bg-customs-tint/40">
                   {/* Product Title & Image Preview */}
                   <td className="max-w-[320px] px-4 py-3.5">
                     <div className="flex items-start gap-3">
@@ -125,7 +125,7 @@ export function OpportunityTable({ items }: { items: Card[] }) {
                           loading="lazy"
                         />
                       ) : (
-                        <div className="h-10 w-10 shrink-0 rounded border border-rule bg-paper flex items-center justify-center text-[10px] text-muted uppercase">
+                        <div className="h-10 w-10 shrink-0 rounded panel-sunken flex items-center justify-center text-[10px] text-muted uppercase">
                           Item
                         </div>
                       )}
@@ -201,15 +201,15 @@ export function OpportunityTable({ items }: { items: Card[] }) {
                           <span>0%</span>
                           <span>50%+</span>
                         </div>
-                        <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded bg-rule/60">
+                        <div className="mt-0.5 h-1.5 w-full overflow-hidden rounded-full bg-rule/60">
                           <div
                             style={{ width: `${(marginClamped / 50) * 100}%` }}
-                            className={`h-full rounded ${
+                            className={`h-full rounded-full transition-[width] duration-300 ${
                               c.margin >= 0.2
-                                ? "bg-emerald-600"
+                                ? "bg-go"
                                 : c.margin >= 0.1
-                                ? "bg-amber-500"
-                                : "bg-red-500"
+                                ? "bg-hold"
+                                : "bg-stop"
                             }`}
                           />
                         </div>

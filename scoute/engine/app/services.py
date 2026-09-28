@@ -13,9 +13,10 @@ from sqlalchemy import delete, select
 from .config import settings
 from .db import SessionLocal
 from .engine import analyze as A
+from .engine.sentinel import analyze_sentinel_health, calculate_saturation_index, simulate_competition_drift
 from .engine.tables import load
 from .listing import Listing
-from .models import Alert, FeedRun, Opportunity, SearchJob, User, WatchItem, Workspace
+from .models import Alert, FeedRun, Opportunity, SearchJob, SentinelProduct, User, WatchItem, Workspace
 from .notify import send_alert_email
 from .sources import aliexpress, amazon, demo, ebay
 from .sources import risk as risk_gate
@@ -216,4 +217,71 @@ async def recalc_watch() -> int:
     db.commit()
     db.close()
     print(f"[watch] {len(items)} items checked, {made} alerts")
+    return made
+
+
+# ---------------------------------------------------------------- SENTINEL
+_SENTINEL_META_KEYS = ("_sentinel_base_competitors", "_sentinel_base_ads", "sell_base", "supplier_base", "supplier_url")
+
+
+async def recalc_sentinel() -> int:
+    """Daily automated pass over every tracked Sentinel product — this is what makes the
+    'Autonomous Margin Sentinel' actually autonomous, instead of only updating when a user
+    happens to click Rescan. Drifts competitor/ad pressure with a bounded, day-seeded model
+    (see engine.sentinel.simulate_competition_drift for why it's not naive +1/+2 any more),
+    and for live (non-demo) products also refreshes the real sell/supplier price the same
+    way the watchlist does."""
+    db = SessionLocal()
+    rows = db.execute(select(SentinelProduct)).scalars().all()
+    made = 0
+    for sp in rows:
+        inputs = dict(sp.inputs or {})
+        base_comp = inputs.setdefault("_sentinel_base_competitors", sp.competitor_count or 1)
+        base_ads = inputs.setdefault("_sentinel_base_ads", sp.active_ad_count or 2)
+        comp, ads = sp.competitor_count, sp.active_ad_count
+        try:
+            comp, ads = simulate_competition_drift(sp.id, date.today(), base_comp, base_ads)
+            if not settings.demo and sp.asin and not sp.asin.startswith(("DEMO", "NOASIN")):
+                pr = await amazon.current_price(sp.asin, sp.title)
+                if pr.usable:
+                    inputs["sell"] = pr.price
+                sup_url = inputs.get("supplier_url")
+                if sup_url and "aliexpress" in sup_url:
+                    spx = await aliexpress.item_price(sup_url)
+                    if spx:
+                        inputs["supplier"] = spx
+        except Exception as e:
+            print(f"[sentinel] {sp.title[:40]}: {e.__class__.__name__}")
+        calc_in = {k: v for k, v in inputs.items() if k not in _SENTINEL_META_KEYS}
+        sat = calculate_saturation_index(comp, ads)
+        health = analyze_sentinel_health(calc_in, sat, supplier_status=sp.supplier_status or "STABLE")
+        prev_threat = sp.threat_level
+        sp.competitor_count, sp.active_ad_count = comp, ads
+        sp.saturation_score = sat["score"]
+        sp.threat_level = health["threat_level"]
+        sp.current_cpa = health["current_estimated_cpa"]
+        sp.target_cpa = health["max_allowable_cpa"]
+        sp.retail_price = calc_in.get("sell", sp.retail_price)
+        sp.supplier_cost = calc_in.get("supplier", sp.supplier_cost)
+        sp.health = health
+        sp.recommendations = health["recommendations"]
+        sp.inputs = inputs
+        sp.history = (sp.history or [])[-59:] + [{"date": date.today().isoformat(),
+                                                   "cpa_headroom": health["cpa_headroom"], "threat": health["threat_level"]}]
+        sp.last_scanned_at = datetime.utcnow()
+        newly_bad = health["threat_level"] in ("CRITICAL", "WARNING") and prev_threat not in ("CRITICAL", "WARNING")
+        if newly_bad:
+            ws = db.get(Workspace, sp.workspace_id)
+            owner = db.get(User, ws.owner_id) if ws else None
+            title = f"Sentinel: {health['threat_level'].title()} margin threat — {sp.title[:60]}"
+            body = (health["reasons"][0] if health["reasons"] else "Threat level changed.") + \
+                   f" Max allowable CPA ${health['max_allowable_cpa']:.2f}, current estimate ${health['current_estimated_cpa']:.2f}."
+            db.add(Alert(workspace_id=sp.workspace_id, watch_id=sp.id,
+                         kind="destroyed" if health["threat_level"] == "CRITICAL" else "weakened", title=title, body=body))
+            if owner and (owner.settings or {}).get("alert_email", True):
+                await send_alert_email(owner.email, title, body)
+            made += 1
+    db.commit()
+    db.close()
+    print(f"[sentinel] {len(rows)} products checked, {made} new alerts")
     return made

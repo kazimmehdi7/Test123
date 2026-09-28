@@ -105,8 +105,8 @@ export default function FeedPage() {
       ) : (
         <>
           {/* Executive KPI Summary Strip */}
-          <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="panel p-4 border border-rule bg-surface animate-fade-in">
+          <div className="stagger mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="kpi-card" style={{ "--tile-accent": "var(--customs)" } as React.CSSProperties}>
               <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
                 Candidates Passed
               </span>
@@ -116,7 +116,7 @@ export default function FeedPage() {
               </p>
             </div>
 
-            <div className="panel p-4 border border-rule bg-surface">
+            <div className="kpi-card" style={{ "--tile-accent": "var(--success)" } as React.CSSProperties}>
               <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
                 Ready to Source
               </span>
@@ -124,7 +124,7 @@ export default function FeedPage() {
               <p className="text-[11px] text-muted">High confidence & profit</p>
             </div>
 
-            <div className="panel p-4 border border-rule bg-surface">
+            <div className="kpi-card" style={{ "--tile-accent": "var(--rule-strong)" } as React.CSSProperties}>
               <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
                 Avg Sourcing Profit
               </span>
@@ -132,7 +132,7 @@ export default function FeedPage() {
               <p className="text-[11px] text-muted">Per unit net keep</p>
             </div>
 
-            <div className="panel p-4 border border-rule bg-surface">
+            <div className="kpi-card" style={{ "--tile-accent": "var(--accent-warm)" } as React.CSSProperties}>
               <span className="text-[11px] font-bold uppercase tracking-wider text-muted">
                 Peak Net Margin
               </span>
@@ -157,10 +157,10 @@ export default function FeedPage() {
                   role="tab"
                   aria-selected={filter === k}
                   onClick={() => setFilter(k)}
-                  className={`rounded border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-150 ${
                     filter === k
-                      ? "border-ink bg-ink text-white"
-                      : "border-rule bg-surface text-muted hover:text-ink"
+                      ? "border-transparent bg-grad-customs text-white shadow-sm"
+                      : "border-rule bg-surface text-muted hover:border-rule-strong hover:text-ink"
                   }`}
                 >
                   {label}

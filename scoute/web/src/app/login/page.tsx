@@ -31,7 +31,13 @@ export default function Login() {
       <form onSubmit={submit} className="space-y-4">
         <ErrorNote message={err} />
         <div><label className="label" htmlFor="e">Email</label><input id="e" className="field" type="email" required value={email} onChange={e => setEmail(e.target.value)} /></div>
-        <div><label className="label" htmlFor="p">Password</label><input id="p" className="field" type="password" required value={password} onChange={e => setPassword(e.target.value)} /></div>
+        <div>
+          <div className="flex items-center justify-between">
+            <label className="label" htmlFor="p">Password</label>
+            <Link href="/forgot-password" className="text-xs font-medium text-customs underline">Forgot password?</Link>
+          </div>
+          <input id="p" className="field" type="password" required value={password} onChange={e => setPassword(e.target.value)} />
+        </div>
         <button className="btn-primary w-full" disabled={busy}>{busy ? "Logging in…" : "Log in"}</button>
       </form>
     </AuthCard>

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -8,25 +8,39 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from .. import jobs
-from ..auth import check_pw, current_user, hash_pw, plan, token_for, use_search, workspace_for
+from ..auth import check_pw, current_user, hash_pw, hash_token, new_token, plan, token_for, use_search, workspace_for
 from ..config import PLANS, settings
 from ..db import get_db
 from ..engine import analyze as A
-from ..engine.sentinel import calculate_saturation_index, analyze_sentinel_health
+from ..engine.sentinel import calculate_saturation_index, analyze_sentinel_health, simulate_competition_drift
 from ..engine.tables import load
-from ..models import Alert, FeedRun, Opportunity, SearchJob, SentinelProduct, User, WatchItem, Workspace
-from .schemas import Brief, CheckoutIn, Login, RecalcIn, Register, SearchIn, SentinelIn, SettingsIn, WatchIn, WorkspaceIn
+from ..models import Alert, AuthToken, FeedRun, Opportunity, SearchJob, SentinelProduct, User, WatchItem, Workspace
+from ..notify import send_email
+from ..ratelimit import rate_limit
+from .schemas import (Brief, CheckoutIn, ForgotPasswordIn, Login, RecalcIn, Register, ResetPasswordIn, SearchIn,
+                      SentinelIn, SettingsIn, VerifyEmailIn, WatchIn, WorkspaceIn)
 
 router = APIRouter(prefix="/api")
 
 DEFAULT_BRIEF = Brief(categories=["kitchen", "pet", "home"]).model_dump()
+VERIFY_TOKEN_TTL = timedelta(hours=24)
+RESET_TOKEN_TTL = timedelta(hours=1)
 
 
 def _user_out(u: User, db: Session) -> dict:
     ws = db.execute(select(Workspace).where(Workspace.owner_id == u.id).order_by(Workspace.created_at)).scalars().all()
     return {"id": u.id, "email": u.email, "name": u.name, "plan": u.plan, "limits": plan(u), "settings": u.settings,
-            "workspaces": [_ws_out(w) for w in ws], "demo": settings.demo,
+            "email_verified": u.email_verified, "workspaces": [_ws_out(w) for w in ws], "demo": settings.demo,
             "billing_enabled": bool(settings.stripe_secret_key)}
+
+
+async def _send_verification_email(u: User, db: Session):
+    raw, h = new_token()
+    db.add(AuthToken(user_id=u.id, kind="verify_email", token_hash=h, expires_at=datetime.utcnow() + VERIFY_TOKEN_TTL))
+    db.commit()
+    link = f"{settings.frontend_url}/verify-email?token={raw}"
+    sent = await send_email(u.email, "Verify your Scoute email", f"Confirm your email to unlock all of Scoute: {link}")
+    return raw if (not sent and not settings.is_production) else None
 
 
 def _ws_out(w: Workspace) -> dict:
@@ -50,7 +64,7 @@ def meta():
 
 # ============================================================ auth
 @router.post("/auth/register")
-def register(body: Register, db: Session = Depends(get_db)):
+async def register(body: Register, db: Session = Depends(get_db), _=Depends(rate_limit("register", 8, 3600))):
     email = body.email.strip().lower()
     if "@" not in email:
         raise HTTPException(400, "Enter a valid email address")
@@ -61,11 +75,15 @@ def register(body: Register, db: Session = Depends(get_db)):
     db.flush()
     db.add(Workspace(owner_id=u.id, name="My workspace", is_default=True, brief={}))
     db.commit()
-    return {"token": token_for(u), "user": _user_out(u, db)}
+    dev_token = await _send_verification_email(u, db)
+    out = {"token": token_for(u), "user": _user_out(u, db)}
+    if dev_token:  # RESEND_API_KEY not set + not production: surface it so you can test the flow
+        out["dev_verify_token"] = dev_token
+    return out
 
 
 @router.post("/auth/login")
-def login(body: Login, db: Session = Depends(get_db)):
+def login(body: Login, db: Session = Depends(get_db), _=Depends(rate_limit("login", 10, 300))):
     u = db.execute(select(User).where(User.email == body.email.strip().lower())).scalar_one_or_none()
     if not u or not check_pw(body.password, u.password_hash):
         raise HTTPException(401, "Email or password is incorrect")
@@ -75,6 +93,73 @@ def login(body: Login, db: Session = Depends(get_db)):
 @router.get("/me")
 def me(user: User = Depends(current_user), db: Session = Depends(get_db)):
     return _user_out(user, db)
+
+
+@router.post("/auth/resend-verification")
+async def resend_verification(user: User = Depends(current_user), db: Session = Depends(get_db),
+                              _=Depends(rate_limit("resend_verify", 3, 600))):
+    if user.email_verified:
+        return {"ok": True, "already_verified": True}
+    dev_token = await _send_verification_email(user, db)
+    return {"ok": True, **({"dev_verify_token": dev_token} if dev_token else {})}
+
+
+@router.post("/auth/verify-email")
+def verify_email(body: VerifyEmailIn, db: Session = Depends(get_db)):
+    row = db.execute(select(AuthToken).where(AuthToken.token_hash == hash_token(body.token),
+                                              AuthToken.kind == "verify_email")).scalar_one_or_none()
+    if not row or row.used_at or row.expires_at < datetime.utcnow():
+        raise HTTPException(400, "This verification link is invalid or has expired.")
+    u = db.get(User, row.user_id)
+    if u:
+        u.email_verified = True
+    row.used_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/auth/forgot-password")
+async def forgot_password(body: ForgotPasswordIn, db: Session = Depends(get_db), _=Depends(rate_limit("forgot", 5, 900))):
+    u = db.execute(select(User).where(User.email == body.email.strip().lower())).scalar_one_or_none()
+    dev_token = None
+    if u:
+        raw, h = new_token()
+        db.add(AuthToken(user_id=u.id, kind="reset_password", token_hash=h, expires_at=datetime.utcnow() + RESET_TOKEN_TTL))
+        db.commit()
+        link = f"{settings.frontend_url}/reset-password?token={raw}"
+        sent = await send_email(u.email, "Reset your Scoute password", f"Reset your password: {link}\nExpires in 1 hour.")
+        if not sent and not settings.is_production:
+            dev_token = raw
+    # Same response whether or not the email exists — don't let this endpoint be used to
+    # check which emails have an account.
+    out = {"ok": True}
+    if dev_token:
+        out["dev_reset_token"] = dev_token
+    return out
+
+
+@router.post("/auth/reset-password")
+def reset_password(body: ResetPasswordIn, db: Session = Depends(get_db)):
+    row = db.execute(select(AuthToken).where(AuthToken.token_hash == hash_token(body.token),
+                                              AuthToken.kind == "reset_password")).scalar_one_or_none()
+    if not row or row.used_at or row.expires_at < datetime.utcnow():
+        raise HTTPException(400, "This reset link is invalid or has expired.")
+    u = db.get(User, row.user_id)
+    if not u:
+        raise HTTPException(400, "This reset link is invalid or has expired.")
+    u.password_hash = hash_pw(body.password)
+    u.token_version += 1  # every previously issued JWT for this user stops working immediately
+    row.used_at = datetime.utcnow()
+    db.commit()
+    return {"token": token_for(u), "user": _user_out(u, db)}
+
+
+@router.post("/auth/logout-all")
+def logout_all(user: User = Depends(current_user), db: Session = Depends(get_db)):
+    """Invalidate every session (this device and any other) — for 'I think my token leaked'."""
+    user.token_version += 1
+    db.commit()
+    return {"token": token_for(user)}
 
 
 @router.patch("/me/settings")
@@ -425,31 +510,47 @@ def list_sentinel_products(workspace_id: Optional[str] = None, user: User = Depe
 @router.post("/sentinel")
 def track_sentinel_product(body: SentinelIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
     ws = workspace_for(user, body.workspace_id, db)
+    limit = plan(user)["sentinel_items"]
+    if limit == 0:
+        raise HTTPException(403, "The Margin Sentinel is part of the Pro plan.")
+    count = db.execute(select(func.count()).select_from(SentinelProduct).where(SentinelProduct.workspace_id == ws.id)).scalar()
+    if count >= limit:
+        raise HTTPException(403, f"Your plan monitors up to {limit} Sentinel products. Remove one to add another.")
     o = db.get(Opportunity, body.opportunity_id)
     if not o or not o.data.get("inputs"):
         raise HTTPException(400, "Product must have calculated unit economics")
-    
-    existing = db.execute(select(SentinelProduct).where(SentinelProduct.workspace_id == ws.id, SentinelProduct.asin == o.asin)).scalar_one_or_none()
+
+    # Opportunities without a marketplace ASIN (e.g. affiliate/search-only rows) would all share
+    # asin="" — matched below and stored on a column with a (workspace_id, asin) unique
+    # constraint, so a second such product used to silently collide with the first ("already:
+    # true" on a completely different item, or an IntegrityError). Give each a distinct key.
+    sentinel_asin = o.asin or f"NOASIN-{o.id}"
+    existing = db.execute(select(SentinelProduct).where(SentinelProduct.workspace_id == ws.id, SentinelProduct.asin == sentinel_asin)).scalar_one_or_none()
     if existing:
         return {"id": existing.id, "already": True}
-        
+
     inputs = dict(o.data["inputs"])
     for k, v in body.overrides.items():
         if k in inputs and v not in (None, ""):
             inputs[k] = float(v) if k != "channel" else v
-            
-    # Calculate Saturation & Threat Sentinel
+
+    # Calculate Saturation & Threat Sentinel. NOTE: Scoute has no live competitor/ad-spend
+    # integration yet (no Meta/TikTok ad library, no storefront scraping) — these starting
+    # counts are a placeholder seed, not observed data. See engine.sentinel.simulate_competition_drift.
     competitors = 6 if settings.demo else 8
     active_ads = 12 if settings.demo else 14
     sat = calculate_saturation_index(competitors, active_ads)
     health = analyze_sentinel_health(inputs, sat, body.target_cpa)
-    
+    inputs.update(_sentinel_base_competitors=competitors, _sentinel_base_ads=active_ads,
+                 sell_base=inputs["sell"], supplier_base=inputs["supplier"],
+                 supplier_url=(o.data.get("supplier") or {}).get("url"))
+
     sp = SentinelProduct(
         workspace_id=ws.id,
         opportunity_id=o.id,
         title=o.title,
-        asin=o.asin,
-        sku=body.sku or f"SKU-{o.asin[:6]}",
+        asin=sentinel_asin,
+        sku=body.sku or f"SKU-{(o.asin or o.id)[:6]}",
         retail_price=inputs["sell"],
         supplier_cost=inputs["supplier"],
         shipping_cost=inputs["ship"],
@@ -477,22 +578,29 @@ def scan_sentinel_product(sid: str, user: User = Depends(current_user), db: Sess
     if not sp:
         raise HTTPException(404, "Product not found")
     workspace_for(user, sp.workspace_id, db)
-    
-    # Recalculate threat analysis
-    competitors = max(1, sp.competitor_count + (1 if not settings.demo else 0))
-    active_ads = max(2, sp.active_ad_count + (2 if not settings.demo else 0))
+
+    # Same bounded, day-seeded model the daily automated pass uses (services.recalc_sentinel) —
+    # a manual rescan on the same day returns the same numbers instead of ratcheting them up.
+    inputs = dict(sp.inputs or {})
+    base_comp = inputs.setdefault("_sentinel_base_competitors", sp.competitor_count or 1)
+    base_ads = inputs.setdefault("_sentinel_base_ads", sp.active_ad_count or 2)
+    competitors, active_ads = simulate_competition_drift(sp.id, date.today(), base_comp, base_ads)
+    calc_in = {k: v for k, v in inputs.items() if k not in ("_sentinel_base_competitors", "_sentinel_base_ads", "sell_base", "supplier_base", "supplier_url")}
     sat = calculate_saturation_index(competitors, active_ads)
-    health = analyze_sentinel_health(sp.inputs, sat, sp.current_cpa)
-    
+    health = analyze_sentinel_health(calc_in or sp.inputs, sat, supplier_status=sp.supplier_status or "STABLE")
+
     sp.competitor_count = competitors
     sp.active_ad_count = active_ads
     sp.saturation_score = sat["score"]
     sp.threat_level = health["threat_level"]
+    sp.current_cpa = health["current_estimated_cpa"]
+    sp.target_cpa = health["max_allowable_cpa"]
+    sp.inputs = inputs
     sp.health = health
     sp.recommendations = health["recommendations"]
-    sp.history = (sp.history or [])[-29:] + [{"date": date.today().isoformat(), "cpa_headroom": health["cpa_headroom"], "threat": health["threat_level"]}]
+    sp.history = (sp.history or [])[-59:] + [{"date": date.today().isoformat(), "cpa_headroom": health["cpa_headroom"], "threat": health["threat_level"]}]
     sp.last_scanned_at = datetime.utcnow()
-    
+
     db.commit()
     return {"ok": True, "threat_level": sp.threat_level, "health": health}
 
@@ -513,8 +621,8 @@ def remove_sentinel_product(sid: str, user: User = Depends(current_user), db: Se
 def admin_run(what: str, user: User = Depends(current_user)):
     if settings.is_production:
         raise HTTPException(404, "Not found")
-    if what not in ("feed", "watch", "daily"):
-        raise HTTPException(400, "Use feed, watch or daily")
+    if what not in ("feed", "watch", "sentinel", "daily"):
+        raise HTTPException(400, "Use feed, watch, sentinel or daily")
     jobs.submit(what)
     return {"queued": what}
 

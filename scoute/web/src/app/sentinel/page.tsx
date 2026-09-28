@@ -9,30 +9,10 @@ import { api, withWs } from "@/lib/api";
 import { money, pct } from "@/lib/format";
 
 const THREAT_STYLES: Record<string, { badge: string; border: string; bg: string; text: string }> = {
-  CRITICAL: {
-    badge: "bg-red-600 text-white",
-    border: "border-red-500",
-    bg: "bg-red-50/40",
-    text: "text-red-700",
-  },
-  WARNING: {
-    badge: "bg-amber-600 text-white",
-    border: "border-amber-500",
-    bg: "bg-amber-50/40",
-    text: "text-amber-700",
-  },
-  STABLE: {
-    badge: "bg-blue-600 text-white",
-    border: "border-blue-500",
-    bg: "bg-blue-50/40",
-    text: "text-blue-700",
-  },
-  THRIVING: {
-    badge: "bg-emerald-600 text-white",
-    border: "border-emerald-500",
-    bg: "bg-emerald-50/40",
-    text: "text-emerald-700",
-  },
+  CRITICAL: { badge: "bg-stop text-white", border: "border-stop/60", bg: "bg-stop-tint/50", text: "text-stop" },
+  WARNING: { badge: "bg-hold text-white", border: "border-hold/60", bg: "bg-hold-tint/50", text: "text-hold" },
+  STABLE: { badge: "bg-customs text-white", border: "border-customs/50", bg: "bg-customs-tint/60", text: "text-customs" },
+  THRIVING: { badge: "bg-go text-white", border: "border-go/50", bg: "bg-go-tint/60", text: "text-go" },
 };
 
 export default function SentinelPage() {
@@ -121,10 +101,12 @@ export default function SentinelPage() {
       {/* Hero Overview */}
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3 text-xs text-muted">
         <p className="max-w-2xl leading-relaxed">
-          The Sentinel continuously scans competitor store count, Meta/TikTok ad saturation, supplier shipping changes, and 2026 tariff adjustments to defend your live SKU profit margins.
+          The Sentinel re-checks your unit economics automatically once a day (and instantly on demand) and alerts
+          you when a product's margin turns critical. Competitor and ad-saturation counts are a modelled estimate,
+          not a live feed from Meta/TikTok or competing stores — treat them as a directional signal.
         </p>
         <span className="font-semibold text-ink">
-          24/7 Threat Protection Active
+          Daily Automated Scan
         </span>
       </div>
 
@@ -143,8 +125,8 @@ export default function SentinelPage() {
       ) : (
         <div className="space-y-6">
           {/* Executive KPI Strip */}
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <div className="panel border border-rule bg-surface p-4 shadow-sm">
+          <div className="stagger grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="kpi-card" style={{ "--tile-accent": "var(--customs)" } as React.CSSProperties}>
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
                 Monitored Active SKUs
               </span>
@@ -152,7 +134,7 @@ export default function SentinelPage() {
               <p className="text-[11px] text-muted">Protected catalog portfolio</p>
             </div>
 
-            <div className="panel border border-rule bg-surface p-4 shadow-sm">
+            <div className="kpi-card" style={{ "--tile-accent": kpis.critical_threats > 0 ? "var(--accent-warm)" : "var(--success)" } as React.CSSProperties}>
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
                 Critical Margin Threats
               </span>
@@ -166,7 +148,7 @@ export default function SentinelPage() {
               <p className="text-[11px] text-muted">Immediate action recommended</p>
             </div>
 
-            <div className="panel border border-rule bg-surface p-4 shadow-sm">
+            <div className="kpi-card" style={{ "--tile-accent": "var(--hold)" } as React.CSSProperties}>
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
                 Avg Market Saturation
               </span>
@@ -177,7 +159,7 @@ export default function SentinelPage() {
               <p className="text-[11px] text-muted">Competitor ad campaign pressure</p>
             </div>
 
-            <div className="panel border border-rule bg-surface p-4 shadow-sm">
+            <div className="kpi-card" style={{ "--tile-accent": "var(--rule-strong)" } as React.CSSProperties}>
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted">
                 Protected Portfolio Value
               </span>
@@ -268,15 +250,15 @@ export default function SentinelPage() {
                           <span className="num font-extrabold text-ink">{sat.score || item.saturation_score} / 100</span>
                         </div>
 
-                        <div className="mt-2 h-2 w-full overflow-hidden rounded bg-rule/50">
+                        <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-rule/50">
                           <div
                             style={{ width: `${sat.score || item.saturation_score}%` }}
-                            className={`h-full rounded ${
+                            className={`h-full rounded-full transition-[width] duration-300 ${
                               (sat.score || item.saturation_score) >= 75
-                                ? "bg-red-500"
+                                ? "bg-stop"
                                 : (sat.score || item.saturation_score) >= 45
-                                ? "bg-amber-500"
-                                : "bg-emerald-500"
+                                ? "bg-hold"
+                                : "bg-go"
                             }`}
                           />
                         </div>

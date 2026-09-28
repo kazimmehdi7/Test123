@@ -19,6 +19,18 @@ export default function Settings() {
   const [name, setName] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+
+  async function resendVerification() {
+    setResending(true);
+    try {
+      const r = await api<{ ok: boolean; already_verified?: boolean; dev_verify_token?: string }>("/auth/resend-verification", { method: "POST" });
+      if (r.already_verified) { await refresh(); setMsg("Your email is already verified."); }
+      else if (r.dev_verify_token) setMsg(`Dev mode — no email sender configured. Verification link: /verify-email?token=${r.dev_verify_token}`);
+      else setMsg("Verification email sent — check your inbox.");
+      setErr(null);
+    } catch (e: any) { setErr(e.message); } finally { setResending(false); }
+  }
 
   useEffect(() => { if (user) { setS(user.settings); setName(user.name); } }, [user]);
   useEffect(() => { if (typeof window !== "undefined" && location.search.includes("upgraded")) setMsg("Your plan is active. Thanks for upgrading."); }, []);
@@ -56,6 +68,19 @@ export default function Settings() {
           <label className="block"><span className="label">Name</span><input className="field" value={name} onChange={e => setName(e.target.value)} /></label>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!s.alert_email} onChange={e => setS({ ...s, alert_email: e.target.checked })} /> Email me when a watched product's profit changes</label>
           <p className="text-sm text-muted">Plan: <strong className="text-ink">{user.plan}</strong>. <Link href="/pricing" className="text-customs underline">Change plan</Link></p>
+          <p className="text-sm text-muted">
+            Email: <strong className="text-ink">{user.email}</strong>{" "}
+            {user.email_verified ? (
+              <span className="text-go">Verified</span>
+            ) : (
+              <>
+                <span className="text-stop">Not verified</span> —{" "}
+                <button type="button" className="text-customs underline disabled:opacity-50" disabled={resending} onClick={resendVerification}>
+                  {resending ? "Sending…" : "Resend verification email"}
+                </button>
+              </>
+            )}
+          </p>
         </section>
         <button className="btn-primary">Save settings</button>
       </form>

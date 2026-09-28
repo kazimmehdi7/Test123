@@ -27,6 +27,13 @@ class Settings:
     demo: bool = _bool("SCOUTE_DEMO", "false")
     amazon_tag: str = _get("AMAZON_ASSOCIATE_TAG", "placeholder")
     proxy_url: str = _get("PROXY_URL")
+    # Optional: comma-separated list of proxies to spread the fetch worker pool across
+    # (e.g. several residential-proxy exit sessions), so raising FETCH_POOL_SIZE doesn't just
+    # mean more concurrent requests from the same one IP. Falls back to PROXY_URL for all
+    # workers when unset.
+    proxy_urls: List[str] = field(default_factory=lambda: [
+        p.strip() for p in _get("PROXY_URLS").split(",") if p.strip()
+    ])
     ebay_client_id: str = _get("EBAY_CLIENT_ID")
     ebay_client_secret: str = _get("EBAY_CLIENT_SECRET")
     feed_categories: List[str] = field(default_factory=lambda: [
@@ -48,8 +55,16 @@ class Settings:
 
 settings = Settings()
 
+if settings.is_production and (settings.jwt_secret in ("dev-secret-change-me", "change-me-to-a-long-random-string") or len(settings.jwt_secret) < 32):
+    # A predictable/short JWT secret in production lets anyone forge a login token for any
+    # user id. Fail loudly at startup rather than silently issuing forgeable sessions.
+    raise RuntimeError(
+        "ENVIRONMENT=production but JWT_SECRET is missing/default/too short. "
+        "Set JWT_SECRET to a random string of 32+ characters before starting in production."
+    )
+
 PLANS = {
-    "free":     {"searches_per_day": 5,   "feed_items": 3,   "watch_items": 0,   "workspaces": 1, "full_detail": False, "reports": False},
-    "pro":      {"searches_per_day": 100, "feed_items": 999, "watch_items": 25,  "workspaces": 1, "full_detail": True,  "reports": False},
-    "business": {"searches_per_day": 500, "feed_items": 999, "watch_items": 200, "workspaces": 5, "full_detail": True,  "reports": True},
+    "free":     {"searches_per_day": 5,   "feed_items": 3,   "watch_items": 0,   "sentinel_items": 0,  "workspaces": 1, "full_detail": False, "reports": False},
+    "pro":      {"searches_per_day": 100, "feed_items": 999, "watch_items": 25,  "sentinel_items": 10, "workspaces": 1, "full_detail": True,  "reports": False},
+    "business": {"searches_per_day": 500, "feed_items": 999, "watch_items": 200, "sentinel_items": 100, "workspaces": 5, "full_detail": True,  "reports": True},
 }

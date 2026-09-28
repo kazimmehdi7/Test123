@@ -15,8 +15,8 @@ export function Safety({ level }: { level?: string }) {
   const bars = level === "HIGH" ? 3 : level === "MEDIUM" ? 2 : 1;
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold ${c}`} title={`Margin of safety: ${level.toLowerCase()}`}>
-      <span className="inline-flex gap-[2px]" aria-hidden>
-        {[1, 2, 3].map(i => <span key={i} className={`h-3 w-1 ${i <= bars ? "bg-current" : "bg-rule"}`} />)}
+      <span className="inline-flex items-end gap-[2px]" aria-hidden>
+        {[1, 2, 3].map(i => <span key={i} className={`w-1 rounded-[1px] transition-colors ${i <= bars ? "bg-current" : "bg-rule"}`} style={{ height: `${6 + i * 2.5}px` }} />)}
       </span>
       {level.charAt(0) + level.slice(1).toLowerCase()}
     </span>

@@ -31,6 +31,26 @@ class User(Base):
     plan: Mapped[str] = mapped_column(String(20), default="free")
     stripe_customer_id: Mapped[str] = mapped_column(String(80), default="")
     settings: Mapped[dict] = mapped_column(JSON, default=lambda: dict(DEFAULT_USER_SETTINGS))
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Bumped on password reset / "log out everywhere" — embedded in every JWT as "tv" so that
+    # changing it instantly invalidates every token issued before the bump. Existing tokens
+    # (issued before this column existed) have no "tv" claim and are treated as tv=0, matching
+    # every user's default, so nobody is force-logged-out by this change landing.
+    token_version: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class AuthToken(Base):
+    """Single-use tokens for email verification and password reset. Only the SHA-256 hash is
+    stored — the raw token (sent by email / in the reset link) is never persisted, so a DB
+    read alone can't be used to take over an account."""
+    __tablename__ = "auth_tokens"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(20))  # verify_email / reset_password
+    token_hash: Mapped[str] = mapped_column(String(64), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

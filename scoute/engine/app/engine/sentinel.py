@@ -8,7 +8,10 @@ Evaluates real-time threats across:
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+import hashlib
+import random
+from datetime import date
+from typing import Dict, List, Optional, Tuple
 from .profit import compute
 from .failure import analyse
 
@@ -55,6 +58,31 @@ def calculate_saturation_index(
         "competitor_count": competitor_count,
         "active_ads_count": active_ads_count,
     }
+
+
+def _seed(*parts) -> random.Random:
+    h = hashlib.sha1("|".join(str(p) for p in parts).encode()).hexdigest()
+    return random.Random(int(h[:12], 16))
+
+
+def simulate_competition_drift(seed_key: str, day: date, base_competitors: int, base_ads: int) -> Tuple[int, int]:
+    """
+    Day-seeded, bounded competitor/ad-count estimate anchored to a fixed base.
+
+    IMPORTANT — this is a heuristic placeholder, not live data: Scoute does not integrate
+    with the Meta/TikTok ad library or scrape competing storefronts, so there is no real
+    "competitor radar" feed. Earlier this function's caller simply added +1 competitor and
+    +2 ads on every scan, which made every monitored product march toward CRITICAL/SATURATED
+    over time regardless of the real market — a one-way ratchet, not a signal. This version
+    instead produces a deterministic, bounded fluctuation around the count recorded when the
+    product was first tracked, so repeated scans don't manufacture threat on their own.
+    Replace with a real competitor/ad-spend integration before relying on this for launch
+    decisions (see README "Before launch — verify these by hand").
+    """
+    r = _seed(seed_key, day.isoformat())
+    competitors = max(0, round(base_competitors * (1 + r.uniform(-0.25, 0.45))))
+    active_ads = max(0, round(base_ads * (1 + r.uniform(-0.30, 0.55))))
+    return competitors, active_ads
 
 
 def analyze_sentinel_health(

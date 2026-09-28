@@ -1,9 +1,12 @@
-# Optional: Postgres + Redis for production-like local runs.
+# Postgres for local runs that match production. SQLite (the engine's default DATABASE_URL)
+# does not hold up under concurrent writes from multiple users/background jobs — see README.
 services:
   postgres:
     image: postgres:16
     environment: { POSTGRES_USER: postgres, POSTGRES_PASSWORD: postgres, POSTGRES_DB: scoute }
-    ports: ["5433:5432"]
+    # 5433 collides with other projects' Postgres containers on a shared dev machine; 5434 is
+    # this project's own port. If it's still taken, change it here and in DATABASE_URL to match.
+    ports: ["5434:5432"]
     volumes: [pgdata:/var/lib/postgresql/data]
 volumes:
   pgdata:

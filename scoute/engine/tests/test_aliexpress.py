@@ -253,21 +253,38 @@ class TestPackAndQuery(unittest.TestCase):
         self.assertEqual(pack_qty("1/2PCS Fiber-Free Silicone Bread Sling"), 1)
         self.assertEqual(pack_qty("Silicone baking mat 30x40cm"), 1)
 
-    def test_cost_query_drops_brand_and_keeps_pack_size(self):
+    def test_cost_query_drops_known_brand_and_keeps_pack_size(self):
         """
         cost_query should:
-        - remove brand names
+        - remove *known* brand names (via engine.entity's MAJOR_BRANDS-based detector)
         - keep the important product words
         - append pack size when > 1
         """
-        self.assertEqual(
-            cost_query("Koolstuffs Silicone Baking Mat, Nonstick and Reusable, 3 Pack"),
-            "silicone baking mat 3pcs",
-        )
+        q = cost_query("Apple Watch Band Silicone Sport, Nonstick and Reusable, 3 Pack")
+        self.assertNotIn("apple", q)
+        self.assertTrue(q.startswith("watch band silicone") and q.endswith("3pcs"), q)
 
-        q = cost_query("HOTEC Silicone Baking Mats 3 Pack – Non-Stick Reusable")
-        self.assertNotIn("hotec", q)
-        self.assertTrue(q.startswith("silicone baking mats") and q.endswith("3pcs"), q)
+    def test_cost_query_keeps_unknown_storefront_names_but_keeps_real_descriptors_too(self):
+        """
+        cost_query used to guess "the first word is probably a brand, unless it's on this
+        ~40-word list" — which meant it stripped real, search-relevant descriptors whenever
+        they weren't on that list (e.g. "Magnetic" in "Magnetic Knife Strip"), silently
+        degrading the AliExpress query and causing wrong/irrelevant supplier matches.
+
+        It now detects real brands by name instead of guessing by position. The tradeoff:
+        an invented storefront name it doesn't recognize (very common on Amazon — "Koolstuffs",
+        "HOTEC") survives in the query rather than being guessed away. That's the correct
+        tradeoff — a harmless extra word in the query is far less damaging than silently
+        deleting a real, search-relevant product word.
+        """
+        # Real descriptor that the old first-word heuristic would have wrongly stripped:
+        self.assertIn("magnetic", cost_query("Magnetic Knife Strip 16 Inch Stainless Steel Holder"))
+
+        # Unrecognized storefront name survives (no reliable way to tell it apart from a real
+        # descriptive word without a known-brand list) — this is the accepted tradeoff, not a bug:
+        q = cost_query("Koolstuffs Silicone Baking Mat, Nonstick and Reusable, 3 Pack")
+        self.assertIn("silicone baking mat", q)
+        self.assertTrue(q.endswith("3pcs"), q)
 
         self.assertEqual(
             cost_query("Silicone Baking Mat Set of 6, Easy Clean & Non-Stick Food Grade"),

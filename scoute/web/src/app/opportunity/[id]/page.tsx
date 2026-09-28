@@ -167,7 +167,7 @@ export default function OpportunityPage() {
       )}
 
       {/* Hero Card */}
-      <section className="panel mb-6 overflow-hidden border border-rule bg-surface p-6 shadow-sm">
+      <section className="panel mb-6 overflow-hidden p-6 shadow-sm">
         <div className="grid gap-6 md:grid-cols-[1fr_auto]">
           <div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -335,7 +335,7 @@ export default function OpportunityPage() {
         <div className="grid gap-6 lg:grid-cols-[1.15fr_1fr]">
           {/* Left Column: Cost Waterfall & Live Simulator */}
           <div className="space-y-6">
-            <section className="panel overflow-hidden border border-rule bg-surface shadow-sm">
+            <section className="panel overflow-hidden shadow-sm">
               <div className="flex border-b border-rule bg-paper/40 text-xs font-semibold">
                 <button
                   onClick={() => setActiveTab("math")}
@@ -581,7 +581,7 @@ export default function OpportunityPage() {
 
           {/* Right Column: Failure Map & Matched Supplier */}
           <div className="space-y-6">
-            <section className="panel overflow-hidden border border-rule bg-surface shadow-sm">
+            <section className="panel overflow-hidden shadow-sm">
               <div className="flex items-center justify-between border-b border-rule bg-paper/40 px-5 py-3">
                 <div>
                   <h3 className="text-sm font-bold text-ink">Failure Map</h3>
@@ -657,7 +657,7 @@ export default function OpportunityPage() {
               )}
             </section>
 
-            <section className="panel overflow-hidden border border-rule bg-surface p-5 text-sm shadow-sm">
+            <section className="panel overflow-hidden p-5 text-sm shadow-sm">
               <div className="flex items-center justify-between border-b border-rule/60 pb-3">
                 <h3 className="font-bold text-ink">Matched Supplier Candidate</h3>
                 <span className="rounded bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800">
@@ -726,7 +726,7 @@ function Row({ label, v, bold }: { label: string; v: number; bold?: boolean }) {
 
 function NoMatch({ o, canEdit, edits, setEdits, recalc }: any) {
   return (
-    <section className="panel max-w-xl p-6 text-sm border border-rule bg-surface shadow-sm">
+    <section className="panel max-w-xl p-6 text-sm shadow-sm">
       <h3 className="font-bold text-ink text-base">Enter Your Supplier Price</h3>
       <p className="mt-1 text-xs text-muted leading-relaxed">
         We could not match an automated supplier listing with sufficient confidence. Enter your supplier quote

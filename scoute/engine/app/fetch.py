@@ -9,15 +9,26 @@ from __future__ import annotations
 
 import asyncio
 import atexit
+import itertools
 import os
 import re
+import threading
 import time
+from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 import httpx
 
 from .config import settings
+
+# Each profile used to be exactly one browser session (max_workers=1) shared by every user's
+# search and every feed/watchlist/Sentinel refresh — a hard global ceiling of one page load at
+# a time for the whole app. FETCH_POOL_SIZE runs that many independent sessions per profile
+# instead, round-robined, so that many searches (up to the pool size) can genuinely run at once.
+# Keep this conservative: more concurrent fetches from the same IP/proxy gets you rate-limited
+# or blocked faster, not just rate-limited slower — raise it in step with PROXY_URLS below.
+FETCH_POOL_SIZE = max(1, int(os.getenv("FETCH_POOL_SIZE", "2")))
 
 
 class BlockedError(Exception):
@@ -36,17 +47,18 @@ HEADERS = {"Accept-Language": "en-US,en;q=0.9"}
 
 
 class _Worker:
-    def __init__(self, profile: str):
+    def __init__(self, profile: str, proxy: Optional[str] = None, worker_idx: int = 0):
         self.spec = PROFILES[profile]
         self.profile = profile
-        self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"browser-{profile}")
+        self.proxy = proxy
+        self.pool = ThreadPoolExecutor(max_workers=1, thread_name_prefix=f"browser-{profile}-{worker_idx}")
         self.session = None
         self.no_session = False
 
     def _opts(self) -> Dict[str, Any]:
         o = dict(self.spec["options"])
-        if settings.proxy_url:
-            o["proxy"] = settings.proxy_url
+        if self.proxy:
+            o["proxy"] = self.proxy
         return o
 
     def _open(self):
@@ -93,37 +105,59 @@ class _Worker:
             return fetcher.fetch(url, headless=True)
 
 
-_workers: Dict[str, _Worker] = {}
+_pools: Dict[str, List[_Worker]] = {}
+_rr: Dict[str, itertools.count] = defaultdict(lambda: itertools.count())
+_pools_lock = threading.Lock()
+
+
+def _pool_for(profile: str) -> List[_Worker]:
+    if profile not in _pools:
+        with _pools_lock:
+            if profile not in _pools:  # re-check inside the lock
+                proxies = settings.proxy_urls or ([settings.proxy_url] if settings.proxy_url else [None])
+                _pools[profile] = [_Worker(profile, proxies[i % len(proxies)], i) for i in range(FETCH_POOL_SIZE)]
+    return _pools[profile]
+
+
+def _pick_worker(profile: str) -> _Worker:
+    pool = _pool_for(profile)
+    idx = next(_rr[profile]) % len(pool)
+    return pool[idx]
+
+
+def _all_workers() -> List[_Worker]:
+    return [w for pool in _pools.values() for w in pool]
 
 
 @atexit.register
 def _shutdown():
-    for w in _workers.values():
+    for w in _all_workers():
         try:
             w.pool.submit(w._close).result(timeout=10)
         except Exception:
             pass
+
+
 async def close_all():
     """Close every browser session cleanly, before the program exits.
     Without this the browser driver can still be mid-request when Python quits (EPIPE on exit)."""
     loop = asyncio.get_running_loop()
-    for name, w in list(_workers.items()):
+    for w in _all_workers():
         try:
             await asyncio.wait_for(loop.run_in_executor(w.pool, w._close), timeout=15)
         except Exception as e:
-            print(f"[fetch] closing {name}: {e.__class__.__name__}")
+            print(f"[fetch] closing {w.profile}: {e.__class__.__name__}")
         w.pool.shutdown(wait=False)
-    _workers.clear()
-    
+    _pools.clear()
+
 
 async def browser_get(url: str, profile: str = "stealthy", retries: int = 2):
-    if profile not in _workers:
-        _workers[profile] = _Worker(profile)
     last: Optional[Exception] = None
     for attempt in range(1, retries + 1):
+        worker = _pick_worker(profile)
         try:
             t = time.time()
-            page = await asyncio.get_running_loop().run_in_executor(_workers[profile].pool, _workers[profile].fetch_sync, url)
+            page = await asyncio.get_running_loop().run_in_executor(worker.pool, worker.fetch_sync, url)
             print(f"[fetch] {profile} {getattr(page, 'status', '?')} {time.time() - t:.1f}s {url[:90]}")
             return page
         except Exception as e:

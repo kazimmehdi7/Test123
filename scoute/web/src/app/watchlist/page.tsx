@@ -175,11 +175,11 @@ export default function WatchlistPage() {
                 cta="Explore Opportunities"
               />
             ) : (
-              <div className="panel divide-y divide-rule border border-rule bg-surface shadow-sm">
+              <div className="panel divide-y divide-rule shadow-sm">
                 {items.map((w) => (
                   <div
                     key={w.id}
-                    className="flex flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:bg-paper/30 animate-slide-up"
+                    className="flex flex-wrap items-center justify-between gap-4 p-4 transition-colors hover:bg-customs-tint/40 animate-slide-up"
                   >
                     <div className="min-w-0 flex-1">
                       <Link
@@ -237,14 +237,14 @@ export default function WatchlistPage() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-sm font-bold text-ink">Margin & Tariff Alerts</h2>
               {unreadAlerts > 0 && (
-                <span className="rounded bg-stop px-2 py-0.5 text-xs font-bold text-white">
+                <span className="rounded-full bg-stop px-2.5 py-0.5 text-xs font-bold text-white shadow-sm">
                   {unreadAlerts} New
                 </span>
               )}
             </div>
 
             {alerts.length === 0 ? (
-              <div className="panel p-6 border border-rule bg-surface text-center shadow-sm">
+              <div className="panel p-6 text-center shadow-sm">
                 <p className="text-xs font-semibold text-ink">Zero Active Alerts</p>
                 <p className="mt-1 text-xs text-muted leading-relaxed">
                   When a product&apos;s net profit rises or falls by $\ge 25\%$, or when a 2026 tariff rate updates, automated alerts will appear here.

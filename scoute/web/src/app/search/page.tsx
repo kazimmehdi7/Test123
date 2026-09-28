@@ -88,7 +88,7 @@ export default function SearchPage() {
   return (
     <AppShell title="Product Search & Sourcing Check">
       {/* Search Bar Panel */}
-      <div className="panel border border-rule bg-surface p-5 shadow-sm">
+      <div className="kpi-card p-5 shadow-sm" style={{ "--tile-accent": "var(--customs)" } as React.CSSProperties}>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 sm:flex-row">
           <label className="sr-only" htmlFor="q">
             Product Keyword
@@ -126,7 +126,7 @@ export default function SearchPage() {
                 setQ(preset);
                 executeSearch(preset);
               }}
-              className="rounded border border-rule bg-paper/50 px-2.5 py-1 text-ink/80 transition-colors hover:border-customs hover:bg-surface hover:text-customs"
+              className="rounded-full border border-rule bg-surface-sunken px-2.5 py-1 text-ink/80 transition-all duration-150 hover:border-customs hover:bg-customs-tint hover:text-customs"
             >
               {preset}
             </button>
@@ -155,7 +155,7 @@ export default function SearchPage() {
         />
 
         {busy && (
-          <div className="panel border border-rule bg-surface p-10 text-center shadow-sm">
+          <div className="kpi-card p-10 text-center shadow-sm">
             <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-rule border-t-customs" />
             <p className="text-sm font-bold text-ink">{job?.progress}...</p>
             <p className="mt-1 text-xs text-muted">

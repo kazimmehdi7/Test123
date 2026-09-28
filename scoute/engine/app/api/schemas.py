@@ -70,3 +70,16 @@ class SentinelIn(BaseModel):
     target_cpa: Optional[float] = None
     overrides: Dict[str, Any] = {}
 
+
+class VerifyEmailIn(BaseModel):
+    token: str
+
+
+class ForgotPasswordIn(BaseModel):
+    email: str
+
+
+class ResetPasswordIn(BaseModel):
+    token: str
+    password: str = Field(min_length=8)
+

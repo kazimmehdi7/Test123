@@ -119,7 +119,7 @@ class TestMultiSignalMatching(unittest.TestCase):
 
     def test_best_selection_chooses_most_accurate_supplier(self):
         amazon = self._sell("Silicone Macaron Baking Mat Set of 2 Non-Stick Oven Liner", price=18.99)
-        
+
         candidates = [
             self._sup("Silicone Spatula Spoon Kitchen Tool", price=2.00), # wrong product
             self._sup("Silicone Baking Mat Macaron Pastry Sheet Non-Stick", price=3.50), # correct product
@@ -130,6 +130,37 @@ class TestMultiSignalMatching(unittest.TestCase):
         self.assertIsNotNone(pick)
         self.assertIn("Macaron", pick.title)
         self.assertGreaterEqual(pick_score, 0.55)
+
+    def test_price_safeguard_is_pack_size_normalized(self):
+        """
+        A supplier listing priced for its own bulk lot must not be judged against the sell
+        listing's raw price — that used to compare a 10-pack's total price directly against a
+        2-pack's retail price, wrongly flagging a perfectly good bulk-lot match as an
+        overpriced 'reseller' (or the reverse: wrongly favoring a mismatched pack size that
+        merely looked cheap per-listing).
+        """
+        sell = self._sell("No Pull Dog Harness Reflective Adjustable, 2 Pack", price=25.99)
+        bulk_10pack = self._sup("No Pull Dog Harness Reflective Adjustable 10 Pack", price=28.00, shipping=1.50)
+        # Per-2-unit cost is ~$5.60 + $1.50 ship — squarely inside the normal wholesale band,
+        # nowhere near the raw $28 that would trigger the reseller flag unscaled.
+        s = score(sell, bulk_10pack)
+        self.assertGreater(s, 0.55)
+
+    def test_head_noun_fallback_catches_mismatch_outside_curated_clusters(self):
+        """
+        NOUN_CLUSTERS can't enumerate every category. Before the head-noun fallback, two
+        completely different products with no cluster hit on either side scored a neutral 1.0
+        cluster_score — zero protection. A jump rope vs. a kitchen scale is exactly that case:
+        neither 'rope' nor 'scale' is a curated cluster.
+        """
+        sell = self._sell("Weighted Jump Rope Cordless Counter", price=21.99)
+        wrong = self._sup("Digital Kitchen Food Scale Counter", price=4.50)
+        right = self._sup("Cordless Jump Rope Digital Counter", price=4.20)
+
+        s_wrong = score(sell, wrong)
+        s_right = score(sell, right)
+        self.assertLess(s_wrong, 0.45)
+        self.assertGreater(s_right, s_wrong + 0.30)
 
 
 if __name__ == "__main__":

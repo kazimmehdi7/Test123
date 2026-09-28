@@ -43,14 +43,32 @@ NOUN_CLUSTERS: Dict[str, Set[str]] = {
     "lighting": {"lamp", "lamps", "light", "lights", "lantern", "lanterns", "bulb", "bulbs", "strip"},
     "cleaning": {"brush", "brushes", "sponge", "sponges", "cloth", "cloths", "mop", "mops", "duster", "towel", "towels"},
     "bag": {"bag", "bags", "pouch", "pouches", "backpack", "backpacks", "tote", "totes", "case", "cases"},
+    # fitness — previously uncovered, so cluster-based mismatch protection silently did
+    # nothing for this whole feed category (see matching.py's head-noun fallback for the
+    # general case; curated entries here are still better where they exist).
+    "fitness_band": {"band", "bands", "resistance"},
+    "fitness_rope": {"rope", "ropes", "jumprope"},
+    "fitness_weight": {"dumbbell", "dumbbells", "kettlebell", "kettlebells", "weight", "weights"},
+    # yoga/desk mats fall under the existing "mat" cluster above — no separate entry needed.
+    # office — previously uncovered
+    "desk_riser": {"riser", "stand", "monitor"},
+    "cable": {"cable", "cables", "cord", "cords"},
+    # baby — previously uncovered
+    "baby_bib": {"bib", "bibs"},
+    "baby_trimmer": {"trimmer", "clipper", "clippers"},
+    "stroller": {"stroller", "strollers", "pram"},
 }
 
 # Regexes for extracting pack quantity
 PACK_REGEXES: List[re.Pattern] = [
+    # "N/Mpcs" (e.g. "1/2PCS" — an AliExpress variant selector, "buy 1 or 2") must be checked
+    # before the generic "(\d+)\s*pcs" pattern below: that pattern's word boundary happily
+    # matches the "2pcs" tail of "1/2pcs" on its own, silently returning 2 instead of the 1
+    # the whole "N/M" pattern actually means. Order here matters — most specific first.
+    re.compile(r"\b(\d{1,3})\s*/\s*\d{1,3}\s*pcs\b", re.I),
     re.compile(r"\b(?:set|pack|box|lot)\s+of\s+(\d{1,3})\b", re.I),
     re.compile(r"\b(\d{1,3})\s*[-\s]?\s*(?:pack|pk|pcs|pc|pieces|piece|count|ct|packs|sheets|mats|pairs|prs)\b", re.I),
-    re.compile(r"\b(\d{1,3})\s*/\s*\d{1,3}\s*pcs\b", re.I),
-    re.compile(r"\b(\d{1,3})\s*in\s*1\b", re.I),
+    re.compile(r"\b(\d{1,3})\s*[-\s]?\s*in\s*[-\s]?\s*1\b", re.I),  # "3-in-1" or "3 in 1"
 ]
 
 # Regexes for extracting dimensions / measurements

@@ -39,28 +39,6 @@ ITEM_SELECTORS = [
     "a[href*='/item/']",
 ]
 
-GENERIC_FIRST_WORDS = {
-    "silicone", "stainless", "steel", "wooden", "wood", "bamboo", "plastic",
-    "glass", "metal", "cotton", "leather", "reusable", "non", "nonstick",
-    "large", "small", "mini", "extra", "heavy", "portable", "electric",
-    "wireless", "magnetic", "adjustable", "waterproof", "collapsible",
-    "rechargeable", "baby", "dog", "cat", "pet", "kids", "kitchen", "baking",
-    "yoga", "resistance", "car", "camping", "desk", "office", "travel",
-    "under", "over", "white", "black", "clear", "natural", "organic",
-    "premium", "professional", "universal", "upgraded", "new",
-}
-
-HOUSE_BRANDS = {"amazon basics", "amazonbasics", "amazon essentials", "basics"}
-
-QTY_RES = [
-    re.compile(r"\b(\d{1,3})\s*/\s*\d{1,3}\s*pcs\b", re.I),
-    re.compile(r"\b(?:set|pack|box|lot)\s+of\s+(\d{1,3})\b", re.I),
-    re.compile(
-        r"\b(\d{1,3})\s*[-\s]?\s*(?:pack|pk|pcs|pc|pieces|piece|count|ct|packs|sheets|mats)\b",
-        re.I,
-    ),
-]
-
 _FX: Dict[str, float] = {
     "rs": 0.0036, "rs.": 0.0036, "pkr": 0.0036,
     "$": 1.0, "us$": 1.0, "us $": 1.0, "usd": 1.0,
@@ -120,42 +98,35 @@ def set_captcha_solver(solver: CaptchaSolver) -> None:
 # ---------------------------------------------------------------------------
 
 def pack_qty(title: str) -> int:
-    """How many units a listing sells. Default 1."""
-    t = (title or "").lower()
-    for rx in QTY_RES:
-        m = rx.search(t)
-        if m:
-            n = int(m.group(1))
-            if 1 <= n <= 200:
-                return n
-    return 1
+    """How many units a listing sells. Default 1.
+
+    Delegates to engine.entity.extract_pack_qty instead of keeping a second, independent
+    regex set here: this function's result feeds directly into the sell/supplier cost-scaling
+    factor in engine.analyze.opportunity(), while matching.score() uses entity.py's version to
+    decide pack-size alignment when picking *which* supplier is "best". Those two used to
+    disagree (this one didn't recognize "6 Pairs" or "3-in-1", entity.py's did), so a listing
+    could be correctly identified as a 6-pack for matching purposes and then priced as if it
+    were a single unit — the final "supplier cost" would be wrong by the pack-size factor.
+    One implementation now backs both call sites."""
+    from ..engine.entity import extract_pack_qty
+    return extract_pack_qty(title)
 
 
 def cost_query(title: str) -> str:
-    """Amazon title → cleaner AliExpress search query."""
-    from .risk import MAJOR_BRANDS
+    """Amazon title → AliExpress search query.
 
-    t = (title or "").lower()
-    if len(t) > 60:
-        t = re.split(r"[,|(\[]| - | – ", t)[0]
-
-    for b in sorted(MAJOR_BRANDS | HOUSE_BRANDS, key=len, reverse=True):
-        t = re.sub(rf"\b{re.escape(b)}\b", " ", t)
-
-    t = re.sub(r"\b\d+(\.\d+)?\s*(oz|ml|l|inch|in|cm|mm|pcs|pack|count|ft|qt)\b", " ", t)
-    t = re.sub(r"\b(set of|pack of)\s*\d+\b|\b\d+\s*-?\s*pack\b", " ", t)
-
-    words = [
-        w for w in re.sub(r"[^a-z\s]", " ", t).split()
-        if len(w) > 2 and w not in {"the", "and", "for", "with", "set", "pack"}
-    ]
-
-    if len(words) >= 3 and words[0] not in GENERIC_FIRST_WORDS:
-        words = words[1:]
-
-    q = " ".join(words[:6])
-    qty = pack_qty(title)
-    return f"{q} {qty}pcs" if qty > 1 else q
+    Delegates to engine.entity.extract_entity's canonical_query instead of a separate ad hoc
+    heuristic that used to guess "the first word is probably a brand, unless it's in this
+    ~40-word list" — real Amazon titles constantly lead with private-label storefront names
+    that aren't on any such list (e.g. "IMMCUTE Large Dog Pee Pads"), so that heuristic would
+    either strip a real product word or leave brand junk in, sending a degraded query to
+    AliExpress and returning irrelevant candidates before matching even runs. entity.py's
+    extractor detects real known brands by name (MAJOR_BRANDS) instead of guessing by
+    position, and is the same extractor matching.score() uses — so the query that finds
+    candidates and the query used to score them are now built the same way."""
+    from ..engine.entity import extract_entity
+    q = extract_entity(title).canonical_query
+    return q or (title or "").strip()[:60]
 
 
 def _usd(sym: str, num: str) -> Optional[float]:

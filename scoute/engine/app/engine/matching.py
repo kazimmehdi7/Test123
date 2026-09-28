@@ -24,15 +24,26 @@ STOP = {
 }
 
 
+def _stem(w: str) -> str:
+    return w[:-1] if (w.endswith("s") and len(w) > 3 and not w.endswith("ss")) else w
+
+
 def _clean_tokens(text: str) -> Set[str]:
     """Tokenize and stem basic plurals."""
     words = re.findall(r"[a-z0-9]+", (text or "").lower())
-    res = set()
-    for w in words:
-        if len(w) > 2 and w not in STOP:
-            stemmed = w[:-1] if (w.endswith("s") and len(w) > 3 and not w.endswith("ss")) else w
-            res.add(stemmed)
-    return res
+    return {_stem(w) for w in words if len(w) > 2 and w not in STOP}
+
+
+def _head_noun(title: str) -> Optional[str]:
+    """The last significant word of a cleaned title, stemmed — a cheap general proxy for the
+    core product noun (English product titles overwhelmingly end in it: 'Resistance Bands
+    Set', 'Desk Mat Leather', 'Baby Nail Trimmer'). Used as a fallback signal when neither
+    title matched the curated NOUN_CLUSTERS dictionary, since that dictionary can't cover
+    every category — without this, two completely different products with no cluster hit
+    scored a neutral 1.0 with zero mismatch protection."""
+    ordered = [_stem(w) for w in re.findall(r"[a-z0-9]+", (title or "").lower())
+               if len(w) > 2 and w not in STOP]
+    return ordered[-1] if ordered else None
 
 
 def _ngram_similarity(s1: str, s2: str, n: int = 3) -> float:
@@ -80,6 +91,19 @@ def score(sell: Listing, sup: Listing, sell_entity: Optional[ProductEntity] = No
             cluster_score = 1.20
         else:
             cluster_score = 0.65
+    else:
+        # Neither title matched the curated NOUN_CLUSTERS dictionary — common for categories
+        # it doesn't cover — which used to leave cluster_score at a neutral 1.0, i.e. zero
+        # mismatch protection for whole categories. Fall back to comparing the head noun (last
+        # significant word) of each title: a general, dictionary-free product-type signal.
+        h1, h2 = _head_noun(sell.title), _head_noun(sup.title)
+        if h1 and h2:
+            if h1 == h2:
+                cluster_score = 1.15
+            elif _ngram_similarity(h1, h2) >= 0.6:
+                cluster_score = 0.95  # likely the same word, different plural/spelling
+            else:
+                cluster_score = 0.55  # probably a different product type
 
     # 2. Token Overlap on informative descriptors
     a_tokens = _clean_tokens(sell.title)
@@ -126,10 +150,17 @@ def score(sell: Listing, sup: Listing, sell_entity: Optional[ProductEntity] = No
     if sq != pq:
         pack_factor = 0.90 # slight discount for different pack count (cost gets scaled in analyze)
 
-    # 6. Price & Economic Feasibility Safeguards
+    # 6. Price & Economic Feasibility Safeguards — compared on a pack-size-normalized basis.
+    # A supplier listing priced for a bulk lot (e.g. a 10-pack) can't be compared directly
+    # against a sell listing's price for its own pack size (e.g. a 2-pack): $25 for a 10-pack
+    # looks like a "reseller" red flag next to a $19.99 2-pack sell price, even though the
+    # real per-2-unit cost is $5. This used to compare raw, unscaled prices, so a bulk-lot
+    # listing could be wrongly rejected (or a mismatched pack size wrongly accepted) before
+    # engine.analyze ever gets a chance to scale it correctly.
     price_factor = 1.0
     if sell.price and sup.price:
-        landed_estimate = sup.price + (sup.shipping_cost or 0.0)
+        unit_ratio = (sq / pq) if pq else 1.0
+        landed_estimate = sup.price * unit_ratio + (sup.shipping_cost or 0.0)
         # Reseller flag: supplier price exceeds 85% of retail selling price
         if landed_estimate > sell.price * 0.85:
             price_factor = 0.45
@@ -165,14 +196,18 @@ def best(sell: Listing, candidates: List[Listing]) -> Tuple[Optional[Listing], f
     near = [c for s, c in scored if s >= top_score - 0.10 and s >= 0.40]
     if not near:
         near = [scored[0][1]]
-        
+
+    def _unit_landed(c: Listing) -> float:
+        # Same pack-size normalization as the price-feasibility check in score() — comparing
+        # raw prices here would let a bulk-lot listing "win" the tie-break purely for looking
+        # cheap per-listing, when it's actually priced for the wrong quantity.
+        pq = extract_entity(c.title).pack_qty or 1
+        ratio = sell_entity.pack_qty / pq
+        return c.price * ratio + (c.shipping_cost or 0.0)
+
     pick = min(
         near,
-        key=lambda c: (
-            (c.price + (c.shipping_cost or 0.0))
-            - ((c.rating or 4.0) * 0.5)
-            - ((c.sold_count or 0) / 100_000)
-        )
+        key=lambda c: _unit_landed(c) - ((c.rating or 4.0) * 0.5) - ((c.sold_count or 0) / 100_000)
     )
 
     final_score = score(sell, pick, sell_entity)
