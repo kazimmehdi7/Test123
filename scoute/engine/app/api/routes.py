@@ -12,9 +12,10 @@ from ..auth import check_pw, current_user, hash_pw, plan, token_for, use_search,
 from ..config import PLANS, settings
 from ..db import get_db
 from ..engine import analyze as A
+from ..engine.sentinel import calculate_saturation_index, analyze_sentinel_health
 from ..engine.tables import load
-from ..models import Alert, FeedRun, Opportunity, SearchJob, User, WatchItem, Workspace
-from .schemas import Brief, CheckoutIn, Login, RecalcIn, Register, SearchIn, SettingsIn, WatchIn, WorkspaceIn
+from ..models import Alert, FeedRun, Opportunity, SearchJob, SentinelProduct, User, WatchItem, Workspace
+from .schemas import Brief, CheckoutIn, Login, RecalcIn, Register, SearchIn, SentinelIn, SettingsIn, WatchIn, WorkspaceIn
 
 router = APIRouter(prefix="/api")
 
@@ -372,6 +373,137 @@ async def webhook(request: Request, db: Session = Depends(get_db)):
         u = db.execute(select(User).where(User.stripe_customer_id == obj.get("customer"))).scalar_one_or_none()
         if u:
             u.plan = "free"
+    db.commit()
+
+# ============================================================ Autonomous Margin Sentinel
+@router.get("/sentinel")
+def list_sentinel_products(workspace_id: Optional[str] = None, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    ws = workspace_for(user, workspace_id, db)
+    rows = db.execute(select(SentinelProduct).where(SentinelProduct.workspace_id == ws.id).order_by(desc(SentinelProduct.last_scanned_at))).scalars().all()
+    
+    total_protected = sum(r.retail_price for r in rows)
+    critical_threats = len([r for r in rows if r.threat_level == "CRITICAL"])
+    warning_threats = len([r for r in rows if r.threat_level == "WARNING"])
+    avg_saturation = round(sum(r.saturation_score for r in rows) / len(rows), 1) if rows else 0.0
+    
+    return {
+        "items": [
+            {
+                "id": r.id,
+                "opportunity_id": r.opportunity_id,
+                "title": r.title,
+                "asin": r.asin,
+                "sku": r.sku,
+                "retail_price": r.retail_price,
+                "supplier_cost": r.supplier_cost,
+                "shipping_cost": r.shipping_cost,
+                "target_cpa": r.target_cpa,
+                "current_cpa": r.current_cpa,
+                "saturation_score": r.saturation_score,
+                "threat_level": r.threat_level,
+                "competitor_count": r.competitor_count,
+                "active_ad_count": r.active_ad_count,
+                "supplier_status": r.supplier_status,
+                "health": r.health,
+                "recommendations": r.recommendations,
+                "history": r.history,
+                "last_scanned_at": r.last_scanned_at.isoformat() if r.last_scanned_at else None,
+                "created_at": r.created_at.isoformat(),
+            }
+            for r in rows
+        ],
+        "kpis": {
+            "monitored_skus": len(rows),
+            "protected_retail_value": round(total_protected, 2),
+            "critical_threats": critical_threats,
+            "warning_threats": warning_threats,
+            "avg_saturation_score": avg_saturation,
+        }
+    }
+
+
+@router.post("/sentinel")
+def track_sentinel_product(body: SentinelIn, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    ws = workspace_for(user, body.workspace_id, db)
+    o = db.get(Opportunity, body.opportunity_id)
+    if not o or not o.data.get("inputs"):
+        raise HTTPException(400, "Product must have calculated unit economics")
+    
+    existing = db.execute(select(SentinelProduct).where(SentinelProduct.workspace_id == ws.id, SentinelProduct.asin == o.asin)).scalar_one_or_none()
+    if existing:
+        return {"id": existing.id, "already": True}
+        
+    inputs = dict(o.data["inputs"])
+    for k, v in body.overrides.items():
+        if k in inputs and v not in (None, ""):
+            inputs[k] = float(v) if k != "channel" else v
+            
+    # Calculate Saturation & Threat Sentinel
+    competitors = 6 if settings.demo else 8
+    active_ads = 12 if settings.demo else 14
+    sat = calculate_saturation_index(competitors, active_ads)
+    health = analyze_sentinel_health(inputs, sat, body.target_cpa)
+    
+    sp = SentinelProduct(
+        workspace_id=ws.id,
+        opportunity_id=o.id,
+        title=o.title,
+        asin=o.asin,
+        sku=body.sku or f"SKU-{o.asin[:6]}",
+        retail_price=inputs["sell"],
+        supplier_cost=inputs["supplier"],
+        shipping_cost=inputs["ship"],
+        target_cpa=health["max_allowable_cpa"],
+        current_cpa=health["current_estimated_cpa"],
+        saturation_score=sat["score"],
+        threat_level=health["threat_level"],
+        competitor_count=competitors,
+        active_ad_count=active_ads,
+        supplier_status="STABLE",
+        inputs=inputs,
+        health=health,
+        recommendations=health["recommendations"],
+        history=[{"date": date.today().isoformat(), "cpa_headroom": health["cpa_headroom"], "threat": health["threat_level"]}],
+        last_scanned_at=datetime.utcnow()
+    )
+    db.add(sp)
+    db.commit()
+    return {"id": sp.id, "threat_level": sp.threat_level}
+
+
+@router.post("/sentinel/{sid}/scan")
+def scan_sentinel_product(sid: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    sp = db.get(SentinelProduct, sid)
+    if not sp:
+        raise HTTPException(404, "Product not found")
+    workspace_for(user, sp.workspace_id, db)
+    
+    # Recalculate threat analysis
+    competitors = max(1, sp.competitor_count + (1 if not settings.demo else 0))
+    active_ads = max(2, sp.active_ad_count + (2 if not settings.demo else 0))
+    sat = calculate_saturation_index(competitors, active_ads)
+    health = analyze_sentinel_health(sp.inputs, sat, sp.current_cpa)
+    
+    sp.competitor_count = competitors
+    sp.active_ad_count = active_ads
+    sp.saturation_score = sat["score"]
+    sp.threat_level = health["threat_level"]
+    sp.health = health
+    sp.recommendations = health["recommendations"]
+    sp.history = (sp.history or [])[-29:] + [{"date": date.today().isoformat(), "cpa_headroom": health["cpa_headroom"], "threat": health["threat_level"]}]
+    sp.last_scanned_at = datetime.utcnow()
+    
+    db.commit()
+    return {"ok": True, "threat_level": sp.threat_level, "health": health}
+
+
+@router.delete("/sentinel/{sid}")
+def remove_sentinel_product(sid: str, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    sp = db.get(SentinelProduct, sid)
+    if not sp:
+        raise HTTPException(404, "Product not found")
+    workspace_for(user, sp.workspace_id, db)
+    db.delete(sp)
     db.commit()
     return {"ok": True}
 

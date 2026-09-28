@@ -2,24 +2,131 @@
 @tailwind components;
 @tailwind utilities;
 
-:root { color-scheme: light; }
-html { background: #EEF1F3; }
-body { @apply bg-paper text-ink antialiased; font-feature-settings: "tnum" 1, "lnum" 1; }
+:root {
+  color-scheme: light;
 
-h1, h2, h3 { letter-spacing: -0.01em; }
-a { text-underline-offset: 3px; }
+  /* Refined palette — slightly warmer paper, deeper ink, richer accent */
+  --paper: #F6F4EF;
+  --surface: #FFFFFF;
+  --ink: #1B1D1F;
+  --muted: #6B7076;
+  --rule: #DCD8CE;
+  --rule-strong: #C7C1B3;
+  --customs: #1E4E8C;
+  --customs-deep: #123259;
+  --accent-warm: #B5451B;
+  --success: #1E7A4C;
 
-:focus-visible { outline: 2px solid #1E4E8C; outline-offset: 2px; }
+  /* Soft shadows for lift instead of flat borders everywhere */
+  --shadow-sm: 0 1px 2px rgba(27, 29, 31, 0.05), 0 1px 1px rgba(27, 29, 31, 0.04);
+  --shadow-md: 0 4px 12px rgba(27, 29, 31, 0.08), 0 2px 4px rgba(27, 29, 31, 0.04);
+  --shadow-lg: 0 12px 32px rgba(27, 29, 31, 0.12), 0 4px 8px rgba(27, 29, 31, 0.05);
+}
+
+html {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(30, 78, 140, 0.05), transparent 60%),
+    radial-gradient(900px 500px at 100% 0%, rgba(181, 69, 27, 0.04), transparent 55%),
+    #EEF1F3;
+}
+
+body {
+  @apply bg-paper text-ink antialiased;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3 {
+  letter-spacing: -0.015em;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+h1 { line-height: 1.15; }
+h2 { line-height: 1.2; }
+
+a {
+  color: var(--customs);
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1.5px;
+  transition: color 150ms ease;
+}
+a:hover { color: var(--customs-deep); }
+
+::selection {
+  background: rgba(30, 78, 140, 0.18);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--customs);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
 
 @layer components {
-  .btn        { @apply inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed; }
-  .btn-primary{ @apply btn bg-customs text-white hover:bg-[#173d70]; }
-  .btn-quiet  { @apply btn border border-rule bg-surface text-ink hover:border-muted; }
-  .field      { @apply w-full rounded border border-rule bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/70 focus:border-customs focus:outline-none; }
-  .label      { @apply mb-1 block text-sm font-medium text-ink; }
-  .hint       { @apply mt-1 text-xs text-muted; }
-  .panel      { @apply border border-rule bg-surface; }
-  .num        { font-variant-numeric: tabular-nums; }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-semibold transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
+    box-shadow: var(--shadow-sm);
+  }
+  .btn:active:not(:disabled) { transform: translateY(1px); box-shadow: none; }
+
+  .btn-primary {
+    @apply btn text-white;
+    background: linear-gradient(180deg, var(--customs), var(--customs-deep));
+  }
+  .btn-primary:hover { filter: brightness(1.08); box-shadow: var(--shadow-md); }
+
+  .btn-quiet {
+    @apply btn bg-surface text-ink;
+    border: 1px solid var(--rule);
+  }
+  .btn-quiet:hover { border-color: var(--rule-strong); box-shadow: var(--shadow-md); }
+
+  .field {
+    @apply w-full rounded-md bg-surface px-3 py-2 text-sm text-ink placeholder:text-muted/60 transition-shadow duration-150;
+    border: 1px solid var(--rule);
+  }
+  .field:hover { border-color: var(--rule-strong); }
+  .field:focus {
+    border-color: var(--customs);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(30, 78, 140, 0.12);
+  }
+
+  .label {
+    @apply mb-1 block text-sm font-medium;
+    color: var(--ink);
+  }
+  .hint {
+    @apply mt-1 text-xs;
+    color: var(--muted);
+  }
+
+  .panel {
+    @apply rounded-lg bg-surface;
+    border: 1px solid var(--rule);
+    box-shadow: var(--shadow-sm);
+  }
+  .panel-hover {
+    @apply panel transition-shadow duration-200;
+  }
+  .panel-hover:hover { box-shadow: var(--shadow-md); }
+
+/* ==== Custom animation utilities ==== */
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@layer utilities {
+  .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+  .animate-slide-up { animation: slideUp 0.35s ease-out forwards; }
+  .transition-color { transition: color 150ms ease; }
+}
+
+
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* subtle divider for sectioning content without a full border */
+  .rule-soft { border-color: var(--rule); }
 }
 
 /* The one bold element: the verdict stamp */
@@ -27,15 +134,27 @@ a { text-underline-offset: 3px; }
   display: inline-flex; align-items: center; justify-content: center;
   border: 2px solid currentColor; border-radius: 3px; padding: 0.2rem 0.6rem;
   font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; line-height: 1;
-  box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 3px currentColor;
+  box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 3px currentColor, var(--shadow-sm);
   transform: rotate(-2.5deg); white-space: nowrap;
 }
 .stamp-lg { font-size: 1.35rem; padding: 0.55rem 1rem; transform: rotate(-4deg); }
+
+.stamp-pass { color: var(--success); }
+.stamp-fail { color: var(--accent-warm); }
+.stamp-hold { color: var(--customs); }
+
 @media (prefers-reduced-motion: no-preference) {
-  .stamp-land { animation: land 420ms cubic-bezier(.2,.9,.3,1.2) both; }
-  @keyframes land { from { transform: rotate(-4deg) scale(1.6); opacity: 0; } to { transform: rotate(-4deg) scale(1); opacity: 1; } }
+  .stamp-land {
+    animation: land 420ms cubic-bezier(.2,.9,.3,1.2) both;
+  }
+  @keyframes land {
+    from { transform: rotate(-4deg) scale(1.6); opacity: 0; }
+    to   { transform: rotate(-4deg) scale(1); opacity: 1; }
+  }
 }
+
 @media print {
   .no-print { display: none !important; }
   body { background: #fff; }
+  .panel, .panel-hover { box-shadow: none; }
 }

@@ -129,3 +129,31 @@ class Usage(Base):
     day: Mapped[date] = mapped_column(Date, default=date.today)
     searches: Mapped[int] = mapped_column(Integer, default=0)
     __table_args__ = (UniqueConstraint("user_id", "day"),)
+
+
+class SentinelProduct(Base):
+    """Product monitored by the Autonomous Margin Sentinel & Competitor Radar."""
+    __tablename__ = "sentinel_products"
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_id)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    opportunity_id: Mapped[str] = mapped_column(String(32), default="")
+    title: Mapped[str] = mapped_column(String(500))
+    asin: Mapped[str] = mapped_column(String(20), default="")
+    sku: Mapped[str] = mapped_column(String(50), default="")
+    retail_price: Mapped[float] = mapped_column(Float, default=0.0)
+    supplier_cost: Mapped[float] = mapped_column(Float, default=0.0)
+    shipping_cost: Mapped[float] = mapped_column(Float, default=0.0)
+    target_cpa: Mapped[float] = mapped_column(Float, default=0.0)
+    current_cpa: Mapped[float] = mapped_column(Float, default=0.0)
+    saturation_score: Mapped[float] = mapped_column(Float, default=0.0)
+    threat_level: Mapped[str] = mapped_column(String(20), default="STABLE")  # STABLE / WARNING / CRITICAL / THRIVING
+    competitor_count: Mapped[int] = mapped_column(Integer, default=0)
+    active_ad_count: Mapped[int] = mapped_column(Integer, default=0)
+    supplier_status: Mapped[str] = mapped_column(String(40), default="STABLE")
+    inputs: Mapped[dict] = mapped_column(JSON, default=dict)
+    health: Mapped[dict] = mapped_column(JSON, default=dict)
+    recommendations: Mapped[list] = mapped_column(JSON, default=list)
+    history: Mapped[list] = mapped_column(JSON, default=list)
+    last_scanned_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    __table_args__ = (UniqueConstraint("workspace_id", "asin"),)

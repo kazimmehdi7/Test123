@@ -7,8 +7,9 @@ import { DemoBanner } from "./DemoBanner";
 import { api, withWs } from "@/lib/api";
 
 const NAV = [
-  { href: "/feed", label: "Today's opportunities" },
-  { href: "/search", label: "Check a product" },
+  { href: "/feed", label: "Daily Opportunities" },
+  { href: "/sentinel", label: "Margin Sentinel" },
+  { href: "/search", label: "Check a Product" },
   { href: "/watchlist", label: "Watchlist" },
   { href: "/workspaces", label: "Clients" },
   { href: "/settings", label: "Settings" },

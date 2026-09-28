@@ -36,11 +36,16 @@ def _row(o: Dict, origin: str, feed_day: date) -> Opportunity:
 async def _suppliers_for(sell: Listing, category: str, mode: str) -> List[Listing]:
     if settings.demo:
         return demo.suppliers(sell, category)
+    from .engine.entity import extract_entity
+    entity = extract_entity(sell.title)
     q = aliexpress.cost_query(sell.title)
     try:
         if mode == "resell":
             return await ebay.search(q, 6) if ebay.enabled() else []
-        return await aliexpress.search(q, 6)
+        results = await aliexpress.search(q, 6)
+        if not results and entity.canonical_query and entity.canonical_query != q:
+            results = await aliexpress.search(entity.canonical_query, 6)
+        return results
     except Exception as e:
         print(f"[supplier] {e.__class__.__name__}: {e}")
         return []

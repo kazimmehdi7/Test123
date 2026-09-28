@@ -61,3 +61,12 @@ class WatchIn(BaseModel):
 
 class CheckoutIn(BaseModel):
     plan: str
+
+
+class SentinelIn(BaseModel):
+    opportunity_id: str
+    workspace_id: Optional[str] = None
+    sku: Optional[str] = ""
+    target_cpa: Optional[float] = None
+    overrides: Dict[str, Any] = {}
+
